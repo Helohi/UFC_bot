@@ -10,7 +10,7 @@ if __name__ == "__main__":
     bot = Bot(token=TOKEN)
 
     bot.dispatcher.add_handler(MessageHandler(callback=answer))
-    bot.dispatcher.add_handler(BotButtonCommandHandler(callback=button_answer   ))
+    bot.dispatcher.add_handler(BotButtonCommandHandler(callback=button_answer))
     bot.start_polling()
 
     print("Start idle")
