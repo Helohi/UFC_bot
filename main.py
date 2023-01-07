@@ -3,6 +3,7 @@ from bot.handler import MessageHandler, BotButtonCommandHandler
 
 from distributor import answer
 from buttons import button_answer
+from functions import log
 
 
 if __name__ == "__main__":
@@ -13,5 +14,5 @@ if __name__ == "__main__":
     bot.dispatcher.add_handler(BotButtonCommandHandler(callback=button_answer))
     bot.start_polling()
 
-    print("Start idle")
+    log("Start idle")
     bot.idle()

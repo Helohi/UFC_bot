@@ -1,7 +1,10 @@
 from bot.bot import Bot
 from bot.event import Event
 from requests import get
-from functions import parse_info_matches, print_bot, log
+from functions import parse_info_matches, print_bot, log, into_thread
+from To_do_class import ToDo
+
+to_do = ToDo()
 
 
 def button_answer(bot: Bot, event: Event):
@@ -10,15 +13,26 @@ def button_answer(bot: Bot, event: Event):
     log("Button pressed")
     event.text = event.callback_query  # For easy usage
     if "info:" in event.text:
-        event.text = event.text.lstrip("info:")
-        ans = get(event.text)  # Getting html of info site
-        if str(ans.status_code) != "200":  # Checking status code
-            raise ConnectionError(f"We get {ans.status_code}, but expected 200")
-        text = parse_info_matches(ans.text)
-
-        print_bot(text, bot, event.from_chat)
+        return to_do.append(info=(bot, event,))
 
 
+@into_thread
+def info(bot, event):
+    event.text = event.text.lstrip("info:")
+    ans = get(event.text)  # Getting html of info site
+    if str(ans.status_code) != "200":  # Checking status code
+        raise ConnectionError(f"We get {ans.status_code}, but expected 200")
+    text = parse_info_matches(ans.text)
+    print_bot(text, bot, event.from_chat)
+    return
+
+
+def doer_of_list(dict_of_events: ToDo):
+    for func in dict_of_events:
+        eval(func)(*dict_of_events[func])
+
+
+to_do.append_function(doer_of_list)
 if __name__ == "__main__":
     pass
 # Event(type='EventType.CALLBACK_QUERY', data='{'callbackData': 'info', 'from': {'firstName': 'Helo_hi',

@@ -3,12 +3,21 @@ import json
 import logging
 import requests
 from bs4 import BeautifulSoup
-from prettytable import PrettyTable
+from threading import Thread
 
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - " %(message)s "', datefmt='%H:%M:%S')
 
 
+def into_thread(func):
+    def run(*args, **kwargs):
+        proc = Thread(target=func, args=args if args else tuple(), kwargs=kwargs if kwargs else dict())
+        proc.start()
+        return
+    return run
+
+
+@into_thread
 def print_bot(text: str, bot: Bot, user_id: str) -> None:
     """ Easier way to write sth to user """
     while True:
@@ -22,6 +31,7 @@ def print_bot(text: str, bot: Bot, user_id: str) -> None:
     return
 
 
+@into_thread
 def print_bot_button(bot, user_id: str = '705079793', text: str = 'Buttons:', url=False,
                      buttons: dict = None, in_row: int = 8, is_admin: bool = False, **kwargs):
     """ Print message to bot with buttons """
@@ -88,7 +98,8 @@ def past_matches(lst_of_matches: list = None):
         raise Exception("Can't connect to site")
 
     # Parsing
-    return parsing_table_of_matches(ans, lst_of_matches)
+    # Sending wiithout first match becouse it is usually future match
+    return parsing_table_of_matches(ans, lst_of_matches)[1:]
 
 
 def future_matches(lst_of_matches: list = None):
@@ -139,24 +150,30 @@ def parse_info_matches(html: str):
         prop = [el.text.split() for el in prop]
 
         # First fighter
-        text_icq = f"{'<b>Win</b>' if winner else '<b>Draw</b>'}: "
+        text_icq = f"{'<b>Победил</b>' if winner else '<b>Ничья</b>'}: "
         text_icq += f"{'_'.join(fighters.text.split()[:2]).strip()}\nKD: {prop[0][0]}\nSTR: {prop[1][0]}\n" \
                     f"TD: {prop[2][0]}\nSUB: {prop[3][0]}\n\n"
         # Second fighter
-        text_icq += f"{'<b>Lose</b>' if winner else '<b>Draw</b>'}: "
+        text_icq += f"{'<b>Проиграл</b>' if winner else '<b>Ничья</b>'}: "
         text_icq += f"{'_'.join(fighters.text.split()[2:]).strip()}\nKD: {prop[0][1]}\nSTR: {prop[1][1]}\n" \
                     f"TD: {prop[2][1]}\nSUB: {prop[3][1]}\n\n"
         # Properties of Match:
-        text_icq += f"<b>Properties of match</b>:\nWeight_class: {' '.join(prop[4])}\nMethode: {prop[5][0]}\n" \
-                    f"Round: {prop[6][0]}\nTime: {prop[7][0]}"
+        text_icq += f"<b>Характеристика матча</b>:\nВесовая категория: {' '.join(prop[4])}\nМетод: {prop[5][0]}\n" \
+                    f"Раунд: {prop[6][0]}\nВремя: {prop[7][0]}"
 
-        return text_icq
     else:  # Future
-        pass
+        fighters = fst_info.find('td', {"class": "b-fight-details__table-col l-page_align_left"})
+        prop = fst_info.find_all('td', {"class": "b-fight-details__table-col"})[2:]
+        prop = [el.text.split() for el in prop]
+
+        text_icq = f"<b>Первый боец</b>: {'_'.join(fighters.text.split()[:2]).strip()}\n\n"
+        text_icq += f"<b>Второй боец</b>: {'_'.join(fighters.text.split()[2:]).strip()}\n\n"
+        text_icq += f"<b>Весовая категория</b>: {' '.join(prop[4])}"
+    return text_icq
 
 
 if __name__ == "__main__":
     ans1 = requests.get("http://ufcstats.com/event-details/56ec58954158966a")
     ans2 = requests.get("http://ufcstats.com/event-details/5717efc6f271cd52")
     print(parse_info_matches(ans1.text))
-    # parse_info_matches(ans2.text)
+    print(parse_info_matches(ans2.text))
