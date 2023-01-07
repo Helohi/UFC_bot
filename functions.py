@@ -147,7 +147,7 @@ def parse_info_matches(html: str):
         text_icq += f"{'_'.join(fighters.text.split()[2:]).strip()}\nKD: {prop[0][1]}\nSTR: {prop[1][1]}\n" \
                     f"TD: {prop[2][1]}\nSUB: {prop[3][1]}\n\n"
         # Properties of Match:
-        text_icq += f"<b>Properties of match</b>:\nWeight_class: {prop[4][0]}\nMethode: {prop[5][0]}\n" \
+        text_icq += f"<b>Properties of match</b>:\nWeight_class: {' '.join(prop[4])}\nMethode: {prop[5][0]}\n" \
                     f"Round: {prop[6][0]}\nTime: {prop[7][0]}"
 
         return text_icq
