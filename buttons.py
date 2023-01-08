@@ -1,7 +1,7 @@
 from bot.bot import Bot
 from bot.event import Event
 from requests import get
-from functions import parse_info_matches, print_bot, log, into_thread
+from functions import parse_info_matches, print_bot, log, into_thread, print_bot_button, parse_fighter_info
 from To_do_class import ToDo
 
 to_do = ToDo()
@@ -11,25 +11,46 @@ def button_answer(bot: Bot, event: Event):
     bot.answer_callback_query(event.data['queryId'], text='Got it')
 
     log("Button pressed")
-    event.text = event.callback_query  # For easy usage
-    if "info:" in event.text:
-        return to_do.append(info=(bot, event,))
+
+    if "info:" in event.callback_query:
+        to_do.append(info=(bot, event,))
+        return
+
+    elif "fighter:" in event.callback_query:
+        to_do.append(fighter=(bot, event,))
+        return
 
 
 @into_thread
-def info(bot, event):
-    event.text = event.text.lstrip("info:")
+def info(bot: Bot, event: Event):
+    event.text = event.callback_query.lstrip("info:")
     ans = get(event.text)  # Getting html of info site
     if str(ans.status_code) != "200":  # Checking status code
         raise ConnectionError(f"We get {ans.status_code}, but expected 200")
-    text = parse_info_matches(ans.text)
-    print_bot(text, bot, event.from_chat)
+    text, buttons = parse_info_matches(ans.text)
+
+    print_bot_button(text=text, bot=bot, user_id=event.from_chat, buttons=buttons, in_row=1)
     return
 
 
+@into_thread
+def fighter(bot: Bot, event: Event):
+    fighter_url = event.callback_query.replace('fighter:', '').strip()
+
+    # Getting html
+    ans = get(fighter_url)
+    if str(ans.status_code) != "200":  # Checking status
+        raise ConnectionError(f"We get {ans.status_code}, but expected 200")
+    # Prepairing text that have to be sent
+    text = parse_fighter_info(ans.text)
+
+    return print_bot(text, bot, event.from_chat)
+
+
 def doer_of_list(dict_of_events: ToDo):
-    for func in dict_of_events:
+    for func in dict_of_events.copy():
         eval(func)(*dict_of_events[func])
+        del dict_of_events[func]
 
 
 to_do.append_function(doer_of_list)

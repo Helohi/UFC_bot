@@ -4,8 +4,8 @@ from functions import print_bot, past_matches, future_matches, print_bot_button,
 
 
 def answer(bot: Bot, event: Event):
-    if event.from_chat != "705079793":  # Security
-        print_bot("Бот не готов! Пожалуйста, попробуйте  позже!", bot, event.from_chat)
+    # if event.from_chat != "705079793":  # Security
+    #     print_bot("Бот не готов! Пожалуйста, попробуйте  позже!", bot, event.from_chat)
 
     # Info about user using bot
     log(f"Got message: id={event.from_chat}, "
@@ -30,10 +30,9 @@ def tables(bot: Bot, event: Event, is_past: bool):
         buttons = {"info": f"info:{match[2]}"}
         if ":" not in match[0]:
             continue
-        buttons[match[0].split()[-1]] = "fighter:" + match[0].split()[-1]
-        buttons[match[0].split()[-3]] = "fighter:" + match[0].split()[-3]
         # Sending
         print_bot_button(text=text, user_id=event.from_chat, bot=bot, buttons=buttons, in_row=1)
+    return
 
 
 if __name__ == "__main__":

@@ -14,6 +14,7 @@ def into_thread(func):
         proc = Thread(target=func, args=args if args else tuple(), kwargs=kwargs if kwargs else dict())
         proc.start()
         return
+
     return run
 
 
@@ -99,7 +100,7 @@ def past_matches(lst_of_matches: list = None):
 
     # Parsing
     # Sending wiithout first match becouse it is usually future match
-    return parsing_table_of_matches(ans, lst_of_matches)[1:]
+    return parsing_table_of_matches(ans.text, lst_of_matches)[1:]
 
 
 def future_matches(lst_of_matches: list = None):
@@ -115,17 +116,18 @@ def future_matches(lst_of_matches: list = None):
         raise Exception("Can't connect to site")
 
     # Parsing
-    return parsing_table_of_matches(ans, lst_of_matches)
+    return parsing_table_of_matches(ans.text, lst_of_matches)
 
 
-def parsing_table_of_matches(html_var, lst_of_matches: list = None):
+def parsing_table_of_matches(html, lst_of_matches: list = None):
     """ Parse a table from ufcstats.com """
     # Checking variables
     if lst_of_matches is None:
         lst_of_matches = []
 
-    soup = BeautifulSoup(html_var.text, 'lxml')
+    soup = BeautifulSoup(html, 'lxml')
     matches = soup.find_all('i', {"class": "b-statistics__table-content"})
+    print(matches)
     # Preparing to send
     for match in matches:
         one_match = match.text.split()
@@ -139,15 +141,15 @@ def parse_info_matches(html: str):
     soup = BeautifulSoup(html, "lxml")
     fst_info = soup.find("tr", {
         "class": "b-fight-details__table-row b-fight-details__table-row__hover js-fight-details-click"})
+    fighters = fst_info.find('td', {"class": "b-fight-details__table-col l-page_align_left"})
+    prop = fst_info.find_all('td', {"class": "b-fight-details__table-col"})[2:]
+    prop = [el.text.split() for el in prop]
+
     if fst_info.td.p:  # Past
         if str(fst_info.td.p.text).strip() == 'win':  # Has winner
             winner = True
         else:  # Draw
             winner = False
-
-        fighters = fst_info.find('td', {"class": "b-fight-details__table-col l-page_align_left"})
-        prop = fst_info.find_all('td', {"class": "b-fight-details__table-col"})[2:]
-        prop = [el.text.split() for el in prop]
 
         # First fighter
         text_icq = f"{'<b>Победил</b>' if winner else '<b>Ничья</b>'}: "
@@ -162,18 +164,41 @@ def parse_info_matches(html: str):
                     f"Раунд: {prop[6][0]}\nВремя: {prop[7][0]}"
 
     else:  # Future
-        fighters = fst_info.find('td', {"class": "b-fight-details__table-col l-page_align_left"})
-        prop = fst_info.find_all('td', {"class": "b-fight-details__table-col"})[2:]
-        prop = [el.text.split() for el in prop]
+        text_icq = f"<b>Первый боец</b>: {'_'.join(fighters.text.split()[:2]).strip()}\n\n"  # First fighter
+        text_icq += f"<b>Второй боец</b>: {'_'.join(fighters.text.split()[2:]).strip()}\n\n"  # Second fighter
+        text_icq += f"<b>Весовая категория</b>: {' '.join(prop[4])}"  # Weight class
 
-        text_icq = f"<b>Первый боец</b>: {'_'.join(fighters.text.split()[:2]).strip()}\n\n"
-        text_icq += f"<b>Второй боец</b>: {'_'.join(fighters.text.split()[2:]).strip()}\n\n"
-        text_icq += f"<b>Весовая категория</b>: {' '.join(prop[4])}"
+    # Buttons for users
+    buttons = {'_'.join(fighters.text.split()[:2]).strip(): "fighter:"+fighters.find_all("a")[0]['href'],
+               '_'.join(fighters.text.split()[2:]).strip(): "fighter:"+fighters.find_all("a")[1]['href']}
+    return text_icq, buttons
+
+
+def parse_fighter_info(html: str):
+    """ Parse info about fighter from ufcstats.com """
+    soup = BeautifulSoup(html, 'lxml')
+    # Getting all needed inforamtion
+    # Getting name
+    name = soup.find("span", class_="b-content__title-highlight").text.strip()
+    # Getting Nickname
+    nick = soup.find("p", class_="b-content__Nickname").text.strip()
+    # Getting Wins-Draws-Looses
+    record = soup.find("span", class_="b-content__title-record").text.strip()
+    record = record.replace("Record: ", "").split('-')
+    # Getting all other properties
+    prop = soup.find("ul", {"class": "b-list__box-list"})
+    prop = [el.strip() for el in prop.text.split("  ") if el.strip()]
+
+    # Preparing text that have to be returned
+    text_icq = f"<b>Полное имя</b>: {name}\n<b>Прозвище</b>: {nick if nick else 'Нет'}\n"
+    text_icq += f"<b>Побед</b>: {record[0]}\n<b>Поражений</b>: {record[1]}\n<b>Ничей</b>: {record[2]}\n" \
+                f"\n<b>Другие характеристики</b>:\n  <b>Высота</b>: {prop[1]}\n  <b>Веc</b>: {prop[3]}\n  " \
+                f"<b>Охват</b>: {prop[5]}\n  <b>Позиция</b>: {prop[7]}\n  <b>Дата рождения</b>: {prop[-1]}"
+
     return text_icq
 
 
 if __name__ == "__main__":
-    ans1 = requests.get("http://ufcstats.com/event-details/56ec58954158966a")
-    ans2 = requests.get("http://ufcstats.com/event-details/5717efc6f271cd52")
-    print(parse_info_matches(ans1.text))
-    print(parse_info_matches(ans2.text))
+    # ans1 = requests.get("http://www.ufcstats.com/event-details/56ec58954158966a")
+    # print(parse_info_matches(ans1.text))
+    ans = parsing_table_of_matches("http://www.ufcstats.com/")
