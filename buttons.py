@@ -1,7 +1,7 @@
 from bot.bot import Bot
 from bot.event import Event
-from requests import get
-from functions import parse_info_matches, print_bot, log, into_thread, print_bot_button, parse_fighter_info
+from functions import (parse_info_matches, print_bot, log, into_thread, print_bot_button, parse_fighter_info, get_html,
+                       parse_se_info)
 from To_do_class import ToDo
 
 to_do = ToDo()
@@ -10,24 +10,32 @@ to_do = ToDo()
 def button_answer(bot: Bot, event: Event):
     bot.answer_callback_query(event.data['queryId'], text='Got it')
 
-    log("Button pressed")
+    log(f"Button was pressed by: id={event.from_chat}, "
+        f"name={event.data['from']['firstName'] if 'firstName' in event.data['from'] else None}, "
+        f"nick={event.data['from']['nick'] if 'nick' in event.data['from'] else None}, "
+        f"callback_data={event.callback_query.split(':')[0]}")
 
     if "info:" in event.callback_query:
         to_do.append(info=(bot, event,))
+        return
+
+    elif "more:" in event.callback_query:
+        to_do.append(more=(bot, event,))
         return
 
     elif "fighter:" in event.callback_query:
         to_do.append(fighter=(bot, event,))
         return
 
+    else:
+        print_bot(event.callback_query, bot, event.from_chat)
+        return
+
 
 @into_thread
 def info(bot: Bot, event: Event):
     event.text = event.callback_query.lstrip("info:")
-    ans = get(event.text)  # Getting html of info site
-    if str(ans.status_code) != "200":  # Checking status code
-        raise ConnectionError(f"We get {ans.status_code}, but expected 200")
-    text, buttons = parse_info_matches(ans.text)
+    text, buttons = parse_info_matches(get_html(event.text))
 
     print_bot_button(text=text, bot=bot, user_id=event.from_chat, buttons=buttons, in_row=1)
     return
@@ -37,14 +45,17 @@ def info(bot: Bot, event: Event):
 def fighter(bot: Bot, event: Event):
     fighter_url = event.callback_query.replace('fighter:', '').strip()
 
-    # Getting html
-    ans = get(fighter_url)
-    if str(ans.status_code) != "200":  # Checking status
-        raise ConnectionError(f"We get {ans.status_code}, but expected 200")
     # Prepairing text that have to be sent
-    text = parse_fighter_info(ans.text)
+    text = parse_fighter_info(get_html(fighter_url))
 
     return print_bot(text, bot, event.from_chat)
+
+
+@into_thread
+def more(bot: Bot, event: Event):
+    start, html = event.callback_query.lstrip("more:").split(";;;")
+    text, buttons = parse_se_info(html, int(start))
+    return print_bot_button(bot, event.from_chat, text, in_row=3, buttons=buttons)
 
 
 def doer_of_list(dict_of_events: ToDo):

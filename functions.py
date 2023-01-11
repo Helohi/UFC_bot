@@ -93,14 +93,8 @@ def past_matches(lst_of_matches: list = None):
     if lst_of_matches is None:
         lst_of_matches = []
 
-    # Getting html of site ufcstats.com
-    ans = requests.get("http://ufcstats.com/statistics/events/completed")
-    if str(ans.status_code) != "200":  # Checking for correctness
-        raise Exception("Can't connect to site")
-
-    # Parsing
     # Sending wiithout first match becouse it is usually future match
-    return parsing_table_of_matches(ans.text, lst_of_matches)[1:]
+    return parsing_table_of_matches(get_html("http://ufcstats.com/statistics/events/completed"), lst_of_matches)[1:]
 
 
 def future_matches(lst_of_matches: list = None):
@@ -110,13 +104,8 @@ def future_matches(lst_of_matches: list = None):
     if not lst_of_matches:
         lst_of_matches = []
 
-    # Getting html from site
-    ans = requests.get("http://ufcstats.com/statistics/events/upcoming")
-    if str(ans.status_code) != "200":  # Checking for correctness
-        raise Exception("Can't connect to site")
-
     # Parsing
-    return parsing_table_of_matches(ans.text, lst_of_matches)
+    return parsing_table_of_matches(get_html("http://ufcstats.com/statistics/events/upcoming"), lst_of_matches)
 
 
 def parsing_table_of_matches(html, lst_of_matches: list = None):
@@ -127,7 +116,6 @@ def parsing_table_of_matches(html, lst_of_matches: list = None):
 
     soup = BeautifulSoup(html, 'lxml')
     matches = soup.find_all('i', {"class": "b-statistics__table-content"})
-    print(matches)
     # Preparing to send
     for match in matches:
         one_match = match.text.split()
@@ -169,8 +157,8 @@ def parse_info_matches(html: str):
         text_icq += f"<b>Весовая категория</b>: {' '.join(prop[4])}"  # Weight class
 
     # Buttons for users
-    buttons = {'_'.join(fighters.text.split()[:2]).strip(): "fighter:"+fighters.find_all("a")[0]['href'],
-               '_'.join(fighters.text.split()[2:]).strip(): "fighter:"+fighters.find_all("a")[1]['href']}
+    buttons = {'_'.join(fighters.text.split()[:2]).strip(): "fighter:" + fighters.find_all("a")[0]['href'],
+               '_'.join(fighters.text.split()[2:]).strip(): "fighter:" + fighters.find_all("a")[1]['href']}
     return text_icq, buttons
 
 
@@ -198,7 +186,41 @@ def parse_fighter_info(html: str):
     return text_icq
 
 
+def parse_se_info(html: str, start: int = 1):
+    # Parsing with beautifulsoup
+    soup = BeautifulSoup(html, "lxml")
+    table_data = soup.find_all("td", class_="b-statistics__table-col")
+    text_icq, buttons, num = "Результаты:\n", dict(), ((start-1)//2)+1
+    # Creaating text and buttons with design
+    for el in table_data[(start - 1):(start + 16):2]:
+        # print(el.text)
+        if ':' not in el.text:
+            continue
+        text_icq += f"<b>{num}</b>: {' '.join(el.text.split()[:-3])}\n<i>Дата: {' '.join(el.text.split()[-3:])}</i>\n\n"
+        buttons[str(num)] = f"info:{el.a['href']}"
+        num += 1
+
+    if len(table_data[(start - 1):(start + 16):2]) < len(table_data[::2]):  # Normal showing
+        buttons[">>>"] = f"more:{start + 18};;;{html}"
+
+    if text_icq == "Результаты:\n":
+        return "Ничего не найдено (больше)!", {"empty": "Да, не растраивайся, все еще впереди, возможно скоро мы это "
+                                                        "найдем, ну  а пока, пойди, видео скачай какое-нибудь на "
+                                                        "@DownloadTMbot что-ли"}
+    else:
+        return text_icq, buttons
+
+
+def parse_tournament(html: str):
+    pass
+
+
+def get_html(url):
+    ans1 = requests.get(url)
+    if str(ans1.status_code) != '200':
+        raise Exception("Can't connect to site")
+    return ans1.text
+
+
 if __name__ == "__main__":
-    # ans1 = requests.get("http://www.ufcstats.com/event-details/56ec58954158966a")
-    # print(parse_info_matches(ans1.text))
-    ans = parsing_table_of_matches("http://www.ufcstats.com/")
+    print(parse_se_info(get_html("http://www.ufcstats.com/statistics/events/search?query=UFC"), 19))

@@ -1,20 +1,21 @@
 from bot.bot import Bot
 from bot.event import Event
-from functions import print_bot, past_matches, future_matches, print_bot_button, log, into_thread
+from functions import (print_bot, past_matches, future_matches, print_bot_button, log, into_thread, parse_se_info,
+                       get_html)
 
 
 def answer(bot: Bot, event: Event):
-    # if event.from_chat != "705079793":  # Security
-    #     print_bot("Бот не готов! Пожалуйста, попробуйте  позже!", bot, event.from_chat)
-
     # Info about user using bot
     log(f"Got message: id={event.from_chat}, "
         f"name={event.data['from']['name'] if 'name' in event.data['from'] else None}, "
-        f"nick={event.data['from']['nick'] if 'nick' in event.data['from'] else None}")
+        f"nick={event.data['from']['nick'] if 'nick' in event.data['from'] else None},"
+        f"text={event.text}")
 
-    if (is_past := "/past_table" in event.text) or "/future_table" in event.text:
+    if (is_past := "/past_table" in event.text) or "/future_table" in event.text:  # tables
         return tables(bot, event, is_past)
-    else:
+    elif "/se" in event.text:  # search
+        return se(bot, event)
+    else:  # misunderstand
         print_bot(f"Я не понял ваш: {event.text}.\nДа поможет вам /help", bot, event.from_chat)
 
 
@@ -33,6 +34,16 @@ def tables(bot: Bot, event: Event, is_past: bool):
         # Sending
         print_bot_button(text=text, user_id=event.from_chat, bot=bot, buttons=buttons, in_row=1)
     return
+
+
+@into_thread
+def se(bot: Bot, event: Event):
+    query = event.text.replace("/se", '').strip().replace(" ", "+")
+    if not query:
+        print_bot("Вы должны написать название боя! ( /se название )", bot, event.from_chat)
+        return None
+    text, buttons = parse_se_info(get_html(f"http://www.ufcstats.com/statistics/events/search?query={query}&page=all"))
+    return print_bot_button(bot, event.from_chat, text, in_row=3, buttons=buttons)
 
 
 if __name__ == "__main__":
