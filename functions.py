@@ -85,16 +85,12 @@ def log(*message, show: bool = True):
         logging.warning(' '.join(map(str, message)))
 
 
-def past_matches(lst_of_matches: list = None):
+def past_matches():
     """ Return a lot of past matches in list
      Pattern of one element: match_name;match_date;link_to_match; """
 
-    # Checking variables
-    if lst_of_matches is None:
-        lst_of_matches = []
-
     # Sending wiithout first match becouse it is usually future match
-    return parsing_table_of_matches(get_html("http://ufcstats.com/statistics/events/completed"), lst_of_matches)[1:]
+    return parsing_table_of_matches(get_html("http://ufcstats.com/statistics/events/completed"))[1:]
 
 
 def future_matches(lst_of_matches: list = None):
@@ -123,12 +119,26 @@ def parsing_table_of_matches(html, lst_of_matches: list = None):
     return lst_of_matches
 
 
-def parse_info_matches(html: str):
+def parse_event_detail(html: str, url: str):
+    soup = BeautifulSoup(html, "lxml")
+    table = soup.find("tbody", class_="b-fight-details__table-body")
+    text_icq, buttons = "В иветне:\n", dict()
+    # Get name values from table
+    for num, el in enumerate(table.find_all("tr")):
+        num += 1
+        fighters = el.find_all("td")[1].text.split()
+        text_icq += f"{num}. {' '.join(fighters[:2])} vs. {(' '.join(fighters[2:]))}\n\n"
+        buttons[f"{num}"] = f"dinfo:{num-1};;;{url}"
+
+    return text_icq, buttons
+
+
+def parse_info_matches(html: str, which: int = 0):
     """ Parse information table from ufcstats.com """
 
     soup = BeautifulSoup(html, "lxml")
-    fst_info = soup.find("tr", {
-        "class": "b-fight-details__table-row b-fight-details__table-row__hover js-fight-details-click"})
+    fst_info = soup.find_all("tr", {
+        "class": "b-fight-details__table-row b-fight-details__table-row__hover js-fight-details-click"})[which]
     fighters = fst_info.find('td', {"class": "b-fight-details__table-col l-page_align_left"})
     prop = fst_info.find_all('td', {"class": "b-fight-details__table-col"})[2:]
     prop = [el.text.split() for el in prop]
@@ -223,4 +233,4 @@ def get_html(url):
 
 
 if __name__ == "__main__":
-    print(parse_se_info(get_html("http://www.ufcstats.com/statistics/events/search?query=UFC"), 19))
+    print(parse_event_detail(get_html("http://ufcstats.com/event-details/56ec58954158966a")))

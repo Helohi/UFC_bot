@@ -8,13 +8,15 @@ def answer(bot: Bot, event: Event):
     # Info about user using bot
     log(f"Got message: id={event.from_chat}, "
         f"name={event.data['from']['name'] if 'name' in event.data['from'] else None}, "
-        f"nick={event.data['from']['nick'] if 'nick' in event.data['from'] else None},"
+        f"nick={event.data['from']['nick'] if 'nick' in event.data['from'] else None}, "
         f"text={event.text}")
 
     if (is_past := "/past_table" in event.text) or "/future_table" in event.text:  # tables
         return tables(bot, event, is_past)
+
     elif "/se" in event.text:  # search
         return se(bot, event)
+
     else:  # misunderstand
         print_bot(f"Я не понял ваш: {event.text}.\nДа поможет вам /help", bot, event.from_chat)
 

@@ -1,7 +1,7 @@
 from bot.bot import Bot
 from bot.event import Event
 from functions import (parse_info_matches, print_bot, log, into_thread, print_bot_button, parse_fighter_info, get_html,
-                       parse_se_info)
+                       parse_se_info, parse_event_detail)
 from To_do_class import ToDo
 
 to_do = ToDo()
@@ -15,27 +15,39 @@ def button_answer(bot: Bot, event: Event):
         f"nick={event.data['from']['nick'] if 'nick' in event.data['from'] else None}, "
         f"callback_data={event.callback_query.split(':')[0]}")
 
-    if "info:" in event.callback_query:
+    if "dinfo:" in event.callback_query:  # detailed info from parse_event
+        to_do.append(dinfo=(bot, event,))
+        return
+
+    elif "info:" in event.callback_query:  # info -> listing matches in event
         to_do.append(info=(bot, event,))
         return
 
-    elif "more:" in event.callback_query:
+    elif "more:" in event.callback_query:  # more in search
         to_do.append(more=(bot, event,))
         return
 
-    elif "fighter:" in event.callback_query:
+    elif "fighter:" in event.callback_query:  # info about fighter
         to_do.append(fighter=(bot, event,))
         return
 
-    else:
+    else:  # If some info that do not need to be preapred
         print_bot(event.callback_query, bot, event.from_chat)
         return
 
 
 @into_thread
 def info(bot: Bot, event: Event):
-    event.text = event.callback_query.lstrip("info:")
-    text, buttons = parse_info_matches(get_html(event.text))
+    site_url = event.callback_query.lstrip("info:")
+    text, buttons = parse_event_detail(get_html(site_url), site_url)
+    return print_bot_button(bot, event.from_chat, text, buttons=buttons, in_row=5)
+
+
+@into_thread
+def dinfo(bot: Bot, event: Event):
+    which, url = event.callback_query.lstrip("dinfo:").split(";;;")
+
+    text, buttons = parse_info_matches(get_html(url), int(which))
 
     print_bot_button(text=text, bot=bot, user_id=event.from_chat, buttons=buttons, in_row=1)
     return
