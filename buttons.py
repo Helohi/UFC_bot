@@ -1,13 +1,14 @@
 from bot.bot import Bot
 from bot.event import Event
 from functions import (parse_info_matches, print_bot, log, into_thread, print_bot_button, parse_fighter_info, get_html,
-                       parse_se_info, parse_event_detail)
+                       parse_st_info, parse_event_detail, parse_sf_info, parse_all_fights)
 from To_do_class import ToDo
 
 to_do = ToDo()
 
 
 def button_answer(bot: Bot, event: Event):
+    """ Main function for answering to sth that was writen """
     bot.answer_callback_query(event.data['queryId'], text='Got it')
 
     log(f"Button was pressed by: id={event.from_chat}, "
@@ -23,12 +24,20 @@ def button_answer(bot: Bot, event: Event):
         to_do.append(info=(bot, event,))
         return
 
-    elif "more:" in event.callback_query:  # more in search
-        to_do.append(more=(bot, event,))
+    elif "moret:" in event.callback_query:  # more in search
+        to_do.append(moret=(bot, event,))
+        return
+
+    elif "moref:" in event.callback_query:
+        to_do.append(moref=(bot, event,))
         return
 
     elif "fighter:" in event.callback_query:  # info about fighter
         to_do.append(fighter=(bot, event,))
+        return
+
+    elif "ffights:" in event.callback_query:
+        to_do.append(ffights=(bot, event,))
         return
 
     else:  # If some info that do not need to be preapred
@@ -38,6 +47,7 @@ def button_answer(bot: Bot, event: Event):
 
 @into_thread
 def info(bot: Bot, event: Event):
+    """ Showing fights in event """
     site_url = event.callback_query.lstrip("info:")
     text, buttons = parse_event_detail(get_html(site_url), site_url)
     return print_bot_button(bot, event.from_chat, text, buttons=buttons, in_row=5)
@@ -45,9 +55,10 @@ def info(bot: Bot, event: Event):
 
 @into_thread
 def dinfo(bot: Bot, event: Event):
-    which, url = event.callback_query.lstrip("dinfo:").split(";;;")
+    """ Showing fight's details """
+    which, *is_event, url = event.callback_query.lstrip("dinfo:").split(";;;")
 
-    text, buttons = parse_info_matches(get_html(url), int(which))
+    text, buttons = parse_info_matches(get_html(url), int(which), True if is_event else False)
 
     print_bot_button(text=text, bot=bot, user_id=event.from_chat, buttons=buttons, in_row=1)
     return
@@ -55,30 +66,47 @@ def dinfo(bot: Bot, event: Event):
 
 @into_thread
 def fighter(bot: Bot, event: Event):
+    """ Showing properties of fighter """
     fighter_url = event.callback_query.replace('fighter:', '').strip()
 
     # Prepairing text that have to be sent
-    text = parse_fighter_info(get_html(fighter_url))
+    text, buttons = parse_fighter_info(get_html(fighter_url), fighter_url)
 
-    return print_bot(text, bot, event.from_chat)
+    return print_bot_button(bot, event.from_chat, text, in_row=1, buttons=buttons)
 
 
 @into_thread
-def more(bot: Bot, event: Event):
-    start, html = event.callback_query.lstrip("more:").split(";;;")
-    text, buttons = parse_se_info(html, int(start))
+def ffights(bot: Bot, event: Event):
+    url = event.callback_query.replace("ffights:", "").strip()
+
+    text, buttons = parse_all_fights(get_html(url), url)
+    return print_bot_button(bot, event.from_chat, text, in_row=3, buttons=buttons)
+
+
+@into_thread
+def moret(bot: Bot, event: Event):
+    """ Showing more tours in search """
+    start, url = event.callback_query.lstrip("moret:").split(";;;")
+    text, buttons = parse_st_info(get_html(url), url, int(start))
+    return print_bot_button(bot, event.from_chat, text, in_row=3, buttons=buttons)
+
+
+@into_thread
+def moref(bot: Bot, event: Event):
+    """ Showing more fighters in search """
+    start, url = event.callback_query.lstrip('moref:').split(";;;")
+    text, buttons = parse_sf_info(get_html(url), url, int(start))
     return print_bot_button(bot, event.from_chat, text, in_row=3, buttons=buttons)
 
 
 def doer_of_list(dict_of_events: ToDo):
+    """ Distribute work between functions """
     for func in dict_of_events.copy():
         eval(func)(*dict_of_events[func])
         del dict_of_events[func]
 
 
 to_do.append_function(doer_of_list)
-if __name__ == "__main__":
-    pass
 # Event(type='EventType.CALLBACK_QUERY', data='{'callbackData': 'info', 'from': {'firstName': 'Helo_hi',
 # 'nick': 'tm_team.', 'userId': '705079793'}, 'message': {'chat': {'chatId': '705079793', 'type': 'private'},
 # 'from': {'firstName': 'ultramma_bot', 'nick': 'ultramma_bot', 'userId': '1008049923'}, 'msgId':

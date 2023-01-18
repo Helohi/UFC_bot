@@ -10,6 +10,8 @@ logging.basicConfig(level=logging.INFO,
 
 
 def into_thread(func):
+    """ Running function in thread """
+
     def run(*args, **kwargs):
         proc = Thread(target=func, args=args if args else tuple(), kwargs=kwargs if kwargs else dict())
         proc.start()
@@ -120,6 +122,7 @@ def parsing_table_of_matches(html, lst_of_matches: list = None):
 
 
 def parse_event_detail(html: str, url: str):
+    """ Parse event in site and showing the fights in event """
     soup = BeautifulSoup(html, "lxml")
     table = soup.find("tbody", class_="b-fight-details__table-body")
     text_icq, buttons = "В иветне:\n", dict()
@@ -128,38 +131,43 @@ def parse_event_detail(html: str, url: str):
         num += 1
         fighters = el.find_all("td")[1].text.split()
         text_icq += f"{num}. {' '.join(fighters[:2])} vs. {(' '.join(fighters[2:]))}\n\n"
-        buttons[f"{num}"] = f"dinfo:{num-1};;;{url}"
+        buttons[f"{num}"] = f"dinfo:{num - 1};;;{url}"
 
     return text_icq, buttons
 
 
-def parse_info_matches(html: str, which: int = 0):
+def parse_info_matches(html: str, which: int = 0, is_event: bool = False):
     """ Parse information table from ufcstats.com """
 
     soup = BeautifulSoup(html, "lxml")
-    fst_info = soup.find_all("tr", {
+    info = soup.find_all("tr", {
         "class": "b-fight-details__table-row b-fight-details__table-row__hover js-fight-details-click"})[which]
-    fighters = fst_info.find('td', {"class": "b-fight-details__table-col l-page_align_left"})
-    prop = fst_info.find_all('td', {"class": "b-fight-details__table-col"})[2:]
+    fighters = info.find('td', {"class": "b-fight-details__table-col l-page_align_left"})
+    prop = info.find_all('td', {"class": "b-fight-details__table-col"})[2:]
     prop = [el.text.split() for el in prop]
 
-    if fst_info.td.p:  # Past
-        if str(fst_info.td.p.text).strip() == 'win':  # Has winner
-            winner = True
-        else:  # Draw
-            winner = False
-
+    if info.td.p:  # Past
         # First fighter
-        text_icq = f"{'<b>Победил</b>' if winner else '<b>Ничья</b>'}: "
+        if info.td.p.text.strip() == 'win':  # Has winner
+            text_icq, win = "<b>Победил</b>: ", True
+        elif info.td.p.text.strip() == 'loss':  # Lost in fight (addition for parse_all_fights)
+            text_icq, win = "<b>Проиграл</b>: ", False
+        else:  # Draw
+            text_icq, win = '<b>Ничья</b>: ', None
+
         text_icq += f"{'_'.join(fighters.text.split()[:2]).strip()}\nKD: {prop[0][0]}\nSTR: {prop[1][0]}\n" \
                     f"TD: {prop[2][0]}\nSUB: {prop[3][0]}\n\n"
         # Second fighter
-        text_icq += f"{'<b>Проиграл</b>' if winner else '<b>Ничья</b>'}: "
+        if win is None:
+            text_icq += "<b>Ничья</b>: "
+        else:
+            text_icq += "<b>Проиграл</b>: " if win else "<b>Победил</b>: "
+
         text_icq += f"{'_'.join(fighters.text.split()[2:]).strip()}\nKD: {prop[0][1]}\nSTR: {prop[1][1]}\n" \
                     f"TD: {prop[2][1]}\nSUB: {prop[3][1]}\n\n"
         # Properties of Match:
-        text_icq += f"<b>Характеристика матча</b>:\nВесовая категория: {' '.join(prop[4])}\nМетод: {prop[5][0]}\n" \
-                    f"Раунд: {prop[6][0]}\nВремя: {prop[7][0]}"
+        text_icq += f"<b>Характеристика матча</b>:\n{'Ивент' if is_event else'Весовая категория'}: " \
+                    f"{' '.join(prop[4])}\nМетод: {prop[5][0]}\nРаунд: {prop[6][0]}\nВремя: {prop[7][0]}"
 
     else:  # Future
         text_icq = f"<b>Первый боец</b>: {'_'.join(fighters.text.split()[:2]).strip()}\n\n"  # First fighter
@@ -169,10 +177,12 @@ def parse_info_matches(html: str, which: int = 0):
     # Buttons for users
     buttons = {'_'.join(fighters.text.split()[:2]).strip(): "fighter:" + fighters.find_all("a")[0]['href'],
                '_'.join(fighters.text.split()[2:]).strip(): "fighter:" + fighters.find_all("a")[1]['href']}
+    if is_event:
+        buttons['Ивент'] = f"info:{info.find_all('td')[6].p.a['href']}"
     return text_icq, buttons
 
 
-def parse_fighter_info(html: str):
+def parse_fighter_info(html: str, url: str):
     """ Parse info about fighter from ufcstats.com """
     soup = BeautifulSoup(html, 'lxml')
     # Getting all needed inforamtion
@@ -182,7 +192,7 @@ def parse_fighter_info(html: str):
     nick = soup.find("p", class_="b-content__Nickname").text.strip()
     # Getting Wins-Draws-Looses
     record = soup.find("span", class_="b-content__title-record").text.strip()
-    record = record.replace("Record: ", "").split('-')
+    record = record.replace("Record: ", "").split()[0].split('-')
     # Getting all other properties
     prop = soup.find("ul", {"class": "b-list__box-list"})
     prop = [el.strip() for el in prop.text.split("  ") if el.strip()]
@@ -193,14 +203,18 @@ def parse_fighter_info(html: str):
                 f"\n<b>Другие характеристики</b>:\n  <b>Высота</b>: {prop[1]}\n  <b>Веc</b>: {prop[3]}\n  " \
                 f"<b>Охват</b>: {prop[5]}\n  <b>Позиция</b>: {prop[7]}\n  <b>Дата рождения</b>: {prop[-1]}"
 
-    return text_icq
+    # Buttons for all fights
+    buttons = {"Все матчи": f"ffights:{url}"}
+    return text_icq, buttons
 
 
-def parse_se_info(html: str, start: int = 1):
+def parse_st_info(html: str, site: str, start: int = 1):
+    """ Parsing the search for event """
+
     # Parsing with beautifulsoup
     soup = BeautifulSoup(html, "lxml")
     table_data = soup.find_all("td", class_="b-statistics__table-col")
-    text_icq, buttons, num = "Результаты:\n", dict(), ((start-1)//2)+1
+    text_icq, buttons, num = "Результаты:\n", dict(), ((start - 1) // 2) + 1
     # Creaating text and buttons with design
     for el in table_data[(start - 1):(start + 16):2]:
         # print(el.text)
@@ -210,27 +224,74 @@ def parse_se_info(html: str, start: int = 1):
         buttons[str(num)] = f"info:{el.a['href']}"
         num += 1
 
-    if len(table_data[(start - 1):(start + 16):2]) < len(table_data[::2]):  # Normal showing
-        buttons[">>>"] = f"more:{start + 18};;;{html}"
+    if len(table_data[start + 18::2]) > 0:  # Normal showing
+        buttons[">>>"] = f"moret:{start + 18};;;{site}"
 
     if text_icq == "Результаты:\n":
-        return "Ничего не найдено (больше)!", {"empty": "Да, не растраивайся, все еще впереди, возможно скоро мы это "
+        return "Ничего не найдено (больше)!", {"empty": "Не растраивайся, все еще впереди, возможно скоро мы это "
                                                         "найдем, ну  а пока, пойди, видео скачай какое-нибудь на "
                                                         "@DownloadTMbot что-ли"}
     else:
         return text_icq, buttons
 
 
-def parse_tournament(html: str):
-    pass
+def parse_sf_info(html: str, site: str, start: int = 1):
+    """ Parse the search for fighters """
+
+    soup = BeautifulSoup(html, 'lxml')
+    table_data = soup.find_all("tr", class_="b-statistics__table-row")
+    text_icq, buttons = "Результаты:\n", dict()
+    for num, data in enumerate(table_data[start + 1:start + 11]):
+        num += 1
+        text_icq += f"{num}. {data.td.text.strip()} {data.find_all('td')[1].text.strip()}\n"
+        buttons[str(num)] = f"fighter:{data.td.a['href']}"
+
+    if len(table_data[start + 10:]) > 0:
+        buttons['>>>'] = f"moref:{start + 10};;;{site}"
+
+    if not buttons:
+        return "Ничего не найдено (больше)!", {"empty": "Не растраивайся, все еще впереди, возможно скоро мы это "
+                                                        "найдем, ну  а пока, пойди, видео скачай какое-нибудь на "
+                                                        "@DownloadTMbot что-ли"}
+    else:
+        return text_icq, buttons
 
 
-def get_html(url):
+def get_html(url: str):
+    """ Showing the html by url """
+
     ans1 = requests.get(url)
     if str(ans1.status_code) != '200':
         raise Exception("Can't connect to site")
     return ans1.text
 
 
+def parse_all_fights(html: str, url: str):
+    soup = BeautifulSoup(html, 'lxml')
+    table_data = soup.find_all("tr", class_="b-fight-details__table-row b-fight-details__table-row__hover "
+                                            "js-fight-details-click")
+    text_icq, buttons = "<b>Результаты</b>:\n", dict()
+    for num, tr in enumerate(table_data):
+        text_icq += f"{num + 1}."
+        if tr.td.text.strip() == "win":
+            text_icq += "<i>Победил</i>: "
+        elif tr.td.text.strip() == "loss":
+            text_icq += "<i>Проиграл</i>: "
+        else:
+            text_icq += "<i>Ничья</i>: "
+
+        text_icq += f"{tr.find_all('td')[1].p.text.strip()} vs. {tr.find_all('td')[1].find_all('p')[1].text.strip()}\n"
+        text_icq += f"<b><i>Дата</i></b>: {tr.find_all('td')[6].find_all('p')[1].text.strip()}\n\n"
+
+        buttons[f"{num+1}"] = f"dinfo:{num};;;1;;;{url}"
+
+    return text_icq, buttons
+
+
+def show_video(name):
+    pass
+
+
 if __name__ == "__main__":
-    print(parse_event_detail(get_html("http://ufcstats.com/event-details/56ec58954158966a")))
+    print(parse_all_fights(get_html("http://www.ufcstats.com/fighter-details/f4c49976c75c5ab2"),
+                           "http://www.ufcstats.com/fighter-details/f4c49976c75c5ab2"))
