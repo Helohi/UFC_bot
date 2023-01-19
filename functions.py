@@ -4,6 +4,7 @@ import logging
 import requests
 from bs4 import BeautifulSoup
 from threading import Thread
+from datetime import datetime
 
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - " %(message)s "', datefmt='%H:%M:%S')
@@ -11,7 +12,6 @@ logging.basicConfig(level=logging.INFO,
 
 def into_thread(func):
     """ Running function in thread """
-
     def run(*args, **kwargs):
         proc = Thread(target=func, args=args if args else tuple(), kwargs=kwargs if kwargs else dict())
         proc.start()
@@ -36,7 +36,7 @@ def print_bot(text: str, bot: Bot, user_id: str) -> None:
 
 @into_thread
 def print_bot_button(bot, user_id: str = '705079793', text: str = 'Buttons:', url=False,
-                     buttons: dict = None, in_row: int = 8, is_admin: bool = False, **kwargs):
+                     buttons: dict = None, in_row: int = 8, last_ones: int = None, is_admin: bool = False, **kwargs):
     """ Print message to bot with buttons """
     if not buttons:
         buttons = kwargs
@@ -44,7 +44,9 @@ def print_bot_button(bot, user_id: str = '705079793', text: str = 'Buttons:', ur
     if isinstance(url, bool):
         action_type = "url" if url else "callbackData"
 
-        for btn_text in buttons:
+        for btn_text in buttons.copy():
+            if len(buttons) == last_ones:
+                break
             if len(keyboard[-1]) >= in_row:
                 keyboard.append([])
             if is_admin and not url:  # Admin addition
@@ -53,9 +55,17 @@ def print_bot_button(bot, user_id: str = '705079793', text: str = 'Buttons:', ur
 
             keyboard[-1].append({"text": btn_text,
                                  action_type: buttons[btn_text]})
+            del buttons[btn_text]
+
+        if last_ones:
+            for btn_text in buttons:
+                keyboard.append([{"text": btn_text, action_type: buttons[btn_text]}])
+
     elif hasattr(url, '__iter__'):
         if len(url) == len(buttons):
-            for btn_text, is_url in zip(buttons, url):
+            for btn_text, is_url in zip(buttons.copy(), url.copy()):
+                if len(buttons) == last_ones:
+                    break
                 if len(keyboard[-1]) >= in_row:
                     keyboard.append([])
                 if not is_url and is_admin:  # Admin addition
@@ -64,6 +74,12 @@ def print_bot_button(bot, user_id: str = '705079793', text: str = 'Buttons:', ur
                 action_type = 'url' if is_url else "callbackData"
                 keyboard[-1].append({"text": btn_text,
                                      action_type: buttons[btn_text]})
+                del buttons[btn_text]
+                url.pop(0)
+
+            if last_ones:
+                for btn_text, is_url in zip(buttons, url):
+                    keyboard.append([{"text": btn_text, 'url' if is_url else "callbackData": buttons[btn_text]}])
         else:
             raise IndexError(
                 'buttons and url have different sizes, plz check them!')
@@ -90,20 +106,15 @@ def log(*message, show: bool = True):
 def past_matches():
     """ Return a lot of past matches in list
      Pattern of one element: match_name;match_date;link_to_match; """
-
-    # Sending wiithout first match becouse it is usually future match
+    # Sending without first match becouse it is usually future match
     return parsing_table_of_matches(get_html("http://ufcstats.com/statistics/events/completed"))[1:]
 
 
-def future_matches(lst_of_matches: list = None):
+def future_matches():
     """ Return a lot of past matches in list
      Pattern of one element: match_name;match_date;link_to_match; """
-    # Checking vaiables
-    if not lst_of_matches:
-        lst_of_matches = []
-
-    # Parsing
-    return parsing_table_of_matches(get_html("http://ufcstats.com/statistics/events/upcoming"), lst_of_matches)
+    # Sending table
+    return parsing_table_of_matches(get_html("http://ufcstats.com/statistics/events/upcoming"))
 
 
 def parsing_table_of_matches(html, lst_of_matches: list = None):
@@ -133,6 +144,13 @@ def parse_event_detail(html: str, url: str):
         text_icq += f"{num}. {' '.join(fighters[:2])} vs. {(' '.join(fighters[2:]))}\n\n"
         buttons[f"{num}"] = f"dinfo:{num - 1};;;{url}"
 
+    date = datetime.strptime(soup.find('li', class_='b-list__box-list-item').text.replace("Date:", "").strip(),
+                             '%B %d, %Y')
+    if date < datetime.now():
+        buttons['Смотреть бои'] = f"video:{date.strftime('%d.%m.%Y')}"
+    else:
+        buttons['Где смотреть?'] = f"Бой можно посмотреть по <b>Матч Тв</b> и <b>Матч Боец!</b>"
+    to_bet_buttons(buttons)
     return text_icq, buttons
 
 
@@ -146,7 +164,12 @@ def parse_info_matches(html: str, which: int = 0, is_event: bool = False):
     prop = info.find_all('td', {"class": "b-fight-details__table-col"})[2:]
     prop = [el.text.split() for el in prop]
 
+    # Buttons for users
+    buttons = {'_'.join(fighters.text.split()[:2]).strip(): "fighter:" + fighters.find_all("a")[0]['href'],
+               '_'.join(fighters.text.split()[2:]).strip(): "fighter:" + fighters.find_all("a")[1]['href']}
+
     if info.td.p:  # Past
+        is_past = True
         # First fighter
         if info.td.p.text.strip() == 'win':  # Has winner
             text_icq, win = "<b>Победил</b>: ", True
@@ -158,7 +181,7 @@ def parse_info_matches(html: str, which: int = 0, is_event: bool = False):
         text_icq += f"{'_'.join(fighters.text.split()[:2]).strip()}\nKD: {prop[0][0]}\nSTR: {prop[1][0]}\n" \
                     f"TD: {prop[2][0]}\nSUB: {prop[3][0]}\n\n"
         # Second fighter
-        if win is None:
+        if win is None:  # no not as win can be false => it is lost
             text_icq += "<b>Ничья</b>: "
         else:
             text_icq += "<b>Проиграл</b>: " if win else "<b>Победил</b>: "
@@ -166,20 +189,25 @@ def parse_info_matches(html: str, which: int = 0, is_event: bool = False):
         text_icq += f"{'_'.join(fighters.text.split()[2:]).strip()}\nKD: {prop[0][1]}\nSTR: {prop[1][1]}\n" \
                     f"TD: {prop[2][1]}\nSUB: {prop[3][1]}\n\n"
         # Properties of Match:
-        text_icq += f"<b>Характеристика матча</b>:\n{'Ивент' if is_event else'Весовая категория'}: " \
+        text_icq += f"<b>Характеристика матча</b>:\n{'Ивент' if is_event else 'Весовая категория'}: " \
                     f"{' '.join(prop[4])}\nМетод: {prop[5][0]}\nРаунд: {prop[6][0]}\nВремя: {prop[7][0]}"
 
     else:  # Future
+        is_past = False
         text_icq = f"<b>Первый боец</b>: {'_'.join(fighters.text.split()[:2]).strip()}\n\n"  # First fighter
         text_icq += f"<b>Второй боец</b>: {'_'.join(fighters.text.split()[2:]).strip()}\n\n"  # Second fighter
         text_icq += f"<b>Весовая категория</b>: {' '.join(prop[4])}"  # Weight class
+        to_bet_buttons(buttons)  # betting buttons
 
-    # Buttons for users
-    buttons = {'_'.join(fighters.text.split()[:2]).strip(): "fighter:" + fighters.find_all("a")[0]['href'],
-               '_'.join(fighters.text.split()[2:]).strip(): "fighter:" + fighters.find_all("a")[1]['href']}
     if is_event:
         buttons['Ивент'] = f"info:{info.find_all('td')[6].p.a['href']}"
-    return text_icq, buttons
+    return text_icq, buttons, is_past
+
+
+def to_bet_buttons(buttons):
+    # For making money by main admin
+    buttons['Прогнозы'] = "https://icq.im/durdyevxt"
+    buttons['Сделать ставку'] = "https://icq.im/durdyevxt"
 
 
 def parse_fighter_info(html: str, url: str):
@@ -250,7 +278,7 @@ def parse_sf_info(html: str, site: str, start: int = 1):
         buttons['>>>'] = f"moref:{start + 10};;;{site}"
 
     if not buttons:
-        return "Ничего не найдено (больше)!", {"empty": "Не растраивайся, все еще впереди, возможно скоро мы это "
+        return "Ничего не найдено (больше)!", {"Empty": "Не растраивайся, все еще впереди, возможно скоро мы это "
                                                         "найдем, ну  а пока, пойди, видео скачай какое-нибудь на "
                                                         "@DownloadTMbot что-ли"}
     else:
@@ -283,15 +311,39 @@ def parse_all_fights(html: str, url: str):
         text_icq += f"{tr.find_all('td')[1].p.text.strip()} vs. {tr.find_all('td')[1].find_all('p')[1].text.strip()}\n"
         text_icq += f"<b><i>Дата</i></b>: {tr.find_all('td')[6].find_all('p')[1].text.strip()}\n\n"
 
-        buttons[f"{num+1}"] = f"dinfo:{num};;;1;;;{url}"
+        buttons[f"{num + 1}"] = f"dinfo:{num};;;1;;;{url}"
 
+    if not buttons:
+        return "Нмчего не найдено, печалька!", {"Empty": "Ты не видел моего брата в функции поиска по имени бойца?\n"
+                                                         "Нет? Знаит он хорошо работает, а для поиска по бойцу введи:\n"
+                                                         "/sf *фамлия_или_имя_бойца*"}
     return text_icq, buttons
 
 
-def show_video(name):
-    pass
+def show_video_table(html: str, date: str, start: int = 0):
+    # Beatifulsoup and parsing
+    soup = BeautifulSoup(html, 'lxml')
+    video_table = soup.find_all("a", class_="page-title")
+
+    # Preparing variables
+    text_icq, buttons = "Результаты:\n", dict()
+    for post in video_table[start:start + 5]:
+        if "Видео" in post.text:
+            text_icq += f"<b>{start}</b>. {post.text}\n\n"
+            buttons[f'{start}'] = f"video_info:{post['href']}"
+            start += 1
+
+    if buttons and len(video_table[start:]) > 0:
+        buttons['>>>'] = f"video:{date};;;{start}"
+
+    if not buttons:
+        return "Нет результатов, но скоро будут! (возможно)", {"Empty": "Я 3 брат, остальных не думаю что ты "
+                                                                        "встретишь\nЕсли из найдешь, скажи админу, "
+                                                                        "хорошо? Но проверь что правельно все"
+                                                                        "написал.\nА то мне сдесь очень скучно!🥲\n"
+                                                                        "Пойду посмотрю видео на @DownloadTMbot"}
+    return text_icq, buttons
 
 
 if __name__ == "__main__":
-    print(parse_all_fights(get_html("http://www.ufcstats.com/fighter-details/f4c49976c75c5ab2"),
-                           "http://www.ufcstats.com/fighter-details/f4c49976c75c5ab2"))
+    print(show_video_table("14.01.2023"))

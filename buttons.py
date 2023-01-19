@@ -1,7 +1,7 @@
 from bot.bot import Bot
 from bot.event import Event
 from functions import (parse_info_matches, print_bot, log, into_thread, print_bot_button, parse_fighter_info, get_html,
-                       parse_st_info, parse_event_detail, parse_sf_info, parse_all_fights)
+                       parse_st_info, parse_event_detail, parse_sf_info, parse_all_fights, show_video_table)
 from To_do_class import ToDo
 
 to_do = ToDo()
@@ -14,7 +14,7 @@ def button_answer(bot: Bot, event: Event):
     log(f"Button was pressed by: id={event.from_chat}, "
         f"name={event.data['from']['firstName'] if 'firstName' in event.data['from'] else None}, "
         f"nick={event.data['from']['nick'] if 'nick' in event.data['from'] else None}, "
-        f"callback_data={event.callback_query.split(':')[0]}")
+        f"callback_data={event.callback_query.split(' ')[0]}")
 
     if "dinfo:" in event.callback_query:  # detailed info from parse_event
         to_do.append(dinfo=(bot, event,))
@@ -40,6 +40,10 @@ def button_answer(bot: Bot, event: Event):
         to_do.append(ffights=(bot, event,))
         return
 
+    elif "video:" in event.callback_query:
+        to_do.append(video=(bot, event,))
+        return
+
     else:  # If some info that do not need to be preapred
         print_bot(event.callback_query, bot, event.from_chat)
         return
@@ -50,7 +54,8 @@ def info(bot: Bot, event: Event):
     """ Showing fights in event """
     site_url = event.callback_query.lstrip("info:")
     text, buttons = parse_event_detail(get_html(site_url), site_url)
-    return print_bot_button(bot, event.from_chat, text, buttons=buttons, in_row=5)
+    return print_bot_button(bot, event.from_chat, text, buttons=buttons, in_row=5, last_ones=3,
+                            url=[False for _ in range(len(buttons) - 2)] + [True, True])
 
 
 @into_thread
@@ -58,9 +63,10 @@ def dinfo(bot: Bot, event: Event):
     """ Showing fight's details """
     which, *is_event, url = event.callback_query.lstrip("dinfo:").split(";;;")
 
-    text, buttons = parse_info_matches(get_html(url), int(which), True if is_event else False)
+    text, buttons, is_past = parse_info_matches(get_html(url), int(which), True if is_event else False)
 
-    print_bot_button(text=text, bot=bot, user_id=event.from_chat, buttons=buttons, in_row=1)
+    print_bot_button(text=text, bot=bot, user_id=event.from_chat, buttons=buttons, in_row=2,
+                     url=False if is_past else [False, False, True, True])
     return
 
 
@@ -97,6 +103,19 @@ def moref(bot: Bot, event: Event):
     start, url = event.callback_query.lstrip('moref:').split(";;;")
     text, buttons = parse_sf_info(get_html(url), url, int(start))
     return print_bot_button(bot, event.from_chat, text, in_row=3, buttons=buttons)
+
+
+@into_thread
+def video(bot: Bot, event: Event):
+    date = event.callback_query.lstrip("video:")
+    if ";;;" in date:
+        date = date.split(";;;")
+        text, buttons = show_video_table(get_html(f"https://fightnews.info/search?query={date[0]}"),
+                                         date[0], start=int(date[1]))
+    else:
+        text, buttons = show_video_table(get_html(f"https://fightnews.info/search?query={date}"), date)
+
+    return print_bot_button(bot, event.from_chat, text, buttons=buttons)
 
 
 def doer_of_list(dict_of_events: ToDo):
