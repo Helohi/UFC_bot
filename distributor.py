@@ -14,6 +14,9 @@ def answer(bot: Bot, event: Event):
     if "/start" in event.text:
         return print_bot("/help", bot, event.from_chat)
 
+    elif "/help" in event.text:
+        return
+
     elif (is_past := "/past_table" in event.text) or "/future_table" in event.text:  # tables
         return tables(bot, event, is_past)
 
