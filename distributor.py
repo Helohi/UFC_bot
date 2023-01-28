@@ -1,7 +1,7 @@
 from bot.bot import Bot
 from bot.event import Event
 from functions import (print_bot, past_matches, future_matches, print_bot_button, log, into_thread, parse_st_info,
-                       get_html, parse_sf_info, news_parser)
+                       get_html, parse_sf_info, news_parser, in_channel)
 
 
 def answer(bot: Bot, event: Event):
@@ -11,10 +11,15 @@ def answer(bot: Bot, event: Event):
         f"name={event.data['from']['name'] if 'name' in event.data['from'] else None}, "
         f"nick={event.data['from']['nick'] if 'nick' in event.data['from'] else None}, "
         f"text={event.text}")
-    if "/start" in event.text:
+
+    if "/start" in event.text:  # answer to start
         return print_bot("/help", bot, event.from_chat)
 
-    elif "/help" in event.text:
+    elif in_channel(bot, event.from_chat) is False:  # if not paid user
+        return print_bot_button(text="Если хотите воспользоваться ботом, оплатите платную подписку\n@durdyevxt",
+                                bot=bot, user_id=event.from_chat, buttons={"Оплатить": "https://icq.im/durdyevxt"})
+
+    elif "/help" in event.text:  # nothinng to answer in help as metabot is used
         return
 
     elif (is_past := "/past_table" in event.text) or "/future_table" in event.text:  # tables
@@ -26,7 +31,7 @@ def answer(bot: Bot, event: Event):
     elif "/sf" in event.text:  # search for fighter
         return sf(bot, event)
 
-    elif "/news" in event.text:
+    elif "/news" in event.text:  # last news from championat
         return news(bot, event)
 
     else:  # misunderstand
