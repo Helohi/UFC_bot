@@ -12,6 +12,7 @@ logging.basicConfig(level=logging.INFO,
 
 def into_thread(func):
     """ Running function in thread """
+
     def run(*args, **kwargs):
         proc = Thread(target=func, args=args if args else tuple(), kwargs=kwargs if kwargs else dict())
         proc.start()
@@ -146,10 +147,6 @@ def parse_event_detail(html: str, url: str):
 
     date = datetime.strptime(soup.find('li', class_='b-list__box-list-item').text.replace("Date:", "").strip(),
                              '%B %d, %Y')
-    if date < datetime.now():
-        buttons['Смотреть бои'] = f"video:{date.strftime('%d.%m.%Y')}"
-    else:
-        buttons['Где смотреть?'] = f"Бой можно посмотреть по <b>Матч Тв</b> и <b>Матч Боец!</b>"
     to_bet_buttons(buttons)
     return text_icq, buttons
 
@@ -288,7 +285,10 @@ def parse_sf_info(html: str, site: str, start: int = 1):
 def get_html(url: str):
     """ Showing the html by url """
 
-    ans1 = requests.get(url)
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) '
+                      'Chrome/102.0.0.0 Safari/537.36'}
+    ans1 = requests.get(url, headers=headers)
     if str(ans1.status_code) != '200':
         raise Exception("Can't connect to site")
     return ans1.text
@@ -315,35 +315,42 @@ def parse_all_fights(html: str, url: str):
 
     if not buttons:
         return "Нмчего не найдено, печалька!", {"Empty": "Ты не видел моего брата в функции поиска по имени бойца?\n"
-                                                         "Нет? Знаит он хорошо работает, а для поиска по бойцу введи:\n"
-                                                         "/sf *фамлия_или_имя_бойца*"}
+                                                         "Нет? Значит он хорошо работает, а для поиска по бойцу "
+                                                         "введи:\n/sf *фамлия_или_имя_бойца*"}
     return text_icq, buttons
 
 
-def show_video_table(html: str, date: str, start: int = 0):
-    # Beatifulsoup and parsing
-    soup = BeautifulSoup(html, 'lxml')
-    video_table = soup.find_all("a", class_="page-title")
+def news_parser(html: str, start: int = 0):
+    soup = BeautifulSoup(html, "lxml")
+    text_icq, buttons = "Главные новости:\n", dict()
+    table_of_news = soup.find_all("div", class_="news-item__content")
+    for news in table_of_news[start: start + 10]:
+        start += 1
+        text_icq += f"\n<b>{start}</b>.{news.text.split('  ')[0].strip()}\n"
+        buttons[f"{start}"] = f"news_info:{news.a['href']}"
 
-    # Preparing variables
-    text_icq, buttons = "Результаты:\n", dict()
-    for post in video_table[start:start + 5]:
-        if "Видео" in post.text:
-            text_icq += f"<b>{start}</b>. {post.text}\n\n"
-            buttons[f'{start}'] = f"video_info:{post['href']}"
-            start += 1
-
-    if buttons and len(video_table[start:]) > 0:
-        buttons['>>>'] = f"video:{date};;;{start}"
+    if len(table_of_news[start:]) > 0:
+        buttons[">>>"] = f"news_more:{start}"
 
     if not buttons:
-        return "Нет результатов, но скоро будут! (возможно)", {"Empty": "Я 3 брат, остальных не думаю что ты "
-                                                                        "встретишь\nЕсли из найдешь, скажи админу, "
-                                                                        "хорошо? Но проверь что правельно все"
-                                                                        "написал.\nА то мне сдесь очень скучно!🥲\n"
-                                                                        "Пойду посмотрю видео на @DownloadTMbot"}
+        return "Новстей нет, печалька😥😭", {
+            "empty": "Странно, кто-нибудь уже понял кто создал этого?\nНаверное остальные мои "
+                     "братья уже рассказали нашу историю. Кстати нас очень сложжно нацти если про\n"
+                     "Нас не знать. Интересный факт: 2-ой брат сказал как-то:\nВишня, малина, мед\n"
+                     "Меня ваше мнение мало ****!\nИнтересно, зачем?"}
     return text_icq, buttons
+
+
+def news_info_parser(html: str):
+    soup = BeautifulSoup(html, "lxml")
+    photo = soup.find("div", class_="article-head__photo").img["src"]
+    title = soup.find("div", class_="article-head__title").text.strip()
+    text = soup.find("p").text.strip()
+    # Text_icq preparer
+    text_icq = f"<b>{title}</b>:\n{photo}\n{text}"
+    return text_icq
 
 
 if __name__ == "__main__":
-    print(show_video_table("14.01.2023"))
+    print(news_info_parser(get_html("https://www.championat.com/boxing/news-4974221-dariush-rasskazal-kogda-mozhet"
+                                    "-sostoyatsya-ego-boj-s-eks-chempionom-ufc-olivejroj.html")))

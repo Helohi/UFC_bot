@@ -1,7 +1,7 @@
 from bot.bot import Bot
 from bot.event import Event
 from functions import (print_bot, past_matches, future_matches, print_bot_button, log, into_thread, parse_st_info,
-                       get_html, parse_sf_info)
+                       get_html, parse_sf_info, news_parser)
 
 
 def answer(bot: Bot, event: Event):
@@ -20,6 +20,9 @@ def answer(bot: Bot, event: Event):
 
     elif "/sf" in event.text:  # search for fighter
         return sf(bot, event)
+
+    elif "/news" in event.text:
+        return news(bot, event)
 
     else:  # misunderstand
         print_bot(f"Я не понял ваш: {event.text}.\nДа поможет вам /help", bot, event.from_chat)
@@ -69,6 +72,12 @@ def sf(bot: Bot, event: Event):
                                   f"http://ufcstats.com/statistics/fighters/search?query="
                                   f"{'+'.join(query.split())}")
     return print_bot_button(bot, event.from_chat, text, in_row=3, buttons=buttons)
+
+
+@into_thread
+def news(bot: Bot, event: Event):
+    text, buttons = news_parser(get_html("https://www.championat.com/boxing/_ufc.html"))
+    return print_bot_button(bot, event.from_chat, text, in_row=5, buttons=buttons)
 
 # Event(type='EventType.NEW_MESSAGE', data='{'chat': {'chatId': '705079793', 'type': 'private'}, 'from': {'firstName':
 # 'Helo_hi', 'nick': 'tm_team.', 'userId': '705079793'}, 'msgId': '7184755677980524644', 'text': 'hello', 'timestamp':
