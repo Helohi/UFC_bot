@@ -11,8 +11,10 @@ def answer(bot: Bot, event: Event):
         f"name={event.data['from']['name'] if 'name' in event.data['from'] else None}, "
         f"nick={event.data['from']['nick'] if 'nick' in event.data['from'] else None}, "
         f"text={event.text}")
+    if "/start" in event.text:
+        return print_bot("/help", bot, event.from_chat)
 
-    if (is_past := "/past_table" in event.text) or "/future_table" in event.text:  # tables
+    elif (is_past := "/past_table" in event.text) or "/future_table" in event.text:  # tables
         return tables(bot, event, is_past)
 
     elif "/st" in event.text:  # search for tournment
