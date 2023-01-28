@@ -10,7 +10,7 @@ from functions import log
 
 if __name__ == "__main__":
     # Crateing bot
-    TOKEN = "001.2084803440.4154868764:1008049923"
+    TOKEN = "001.3884702224.2511578187:1008622729"
     bot = Bot(token=TOKEN)
 
     # Adding handlers
