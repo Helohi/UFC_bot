@@ -343,7 +343,10 @@ def news_parser(html: str, start: int = 0):
 
 def news_info_parser(html: str):
     soup = BeautifulSoup(html, "lxml")
-    photo = soup.find("div", class_="article-head__photo").img["src"]
+    try:
+        photo = soup.find("div", class_="article-head__photo").img["src"]
+    except Exception:
+        photo = "https://files.icq.net/get/0fTf9000QNMb7x6RDv59Eu63d65aa71ac"
     title = soup.find("div", class_="article-head__title").text.strip()
     text = soup.find("p").text.strip()
     # Text_icq preparer
