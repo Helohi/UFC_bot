@@ -114,7 +114,9 @@ def moref(bot: Bot, event: Event):
 def news_info(bot: Bot, event: Event):
     """ Parse each news in list and that was pressed """
     link = event.callback_query.replace("news_info:", '').strip()
-    text = news_info_parser(get_html("https://www.championat.com/" + link))
+    if "https://www.championat.com/" not in link:
+        link = "https://www.championat.com/" + link
+    text = news_info_parser(get_html(link))
     return print_bot(text, bot, event.from_chat)
 
 
