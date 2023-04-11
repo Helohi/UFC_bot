@@ -1,7 +1,7 @@
 from bot.bot import Bot
 from bot.event import Event
 from functions import (print_bot, past_matches, future_matches, print_bot_button, log, into_thread, parse_st_info,
-                       get_html, parse_sf_info, news_parser, in_channel)
+                       get_html, parse_sf_info, news_parser)
 
 
 def answer(bot: Bot, event: Event):
@@ -14,10 +14,6 @@ def answer(bot: Bot, event: Event):
 
     if "/start" in event.text:  # answer to start
         return print_bot("/help", bot, event.from_chat)
-
-    elif in_channel(bot, event.from_chat) is False:  # if not paid user
-        return print_bot_button(text="Если хотите воспользоваться ботом, оплатите платную подписку\n@durdyevxt",
-                                bot=bot, user_id=event.from_chat, buttons={"Оплатить": "https://icq.im/durdyevxt"})
 
     elif "/help" in event.text:  # nothinng to answer in help as metabot is used
         return
@@ -34,7 +30,7 @@ def answer(bot: Bot, event: Event):
     elif "/news" in event.text:  # last news from championat
         return news(bot, event)
 
-    else:  # misunderstand
+    elif not ("@chat.agent" in event.from_chat):  # misunderstand
         print_bot(f"Я не понял ваш: {event.text}.\nДа поможет вам /help", bot, event.from_chat)
 
 

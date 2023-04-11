@@ -1,4 +1,4 @@
-# This code is realy related to site ufcstats.com, and just parse data from it, every change in site might raise a
+# This code is realy related to site ufcstats.com, and just parse data from it, every change in site might raise an
 # error or missunderstand in code. Every change in site should also be changed here
 from bot.bot import Bot
 from bot.handler import MessageHandler, BotButtonCommandHandler
@@ -9,7 +9,7 @@ from functions import log
 
 
 if __name__ == "__main__":
-    # Crateing bot
+    # Creating bot
     TOKEN = "001.3884702224.2511578187:1008622729"
     bot = Bot(token=TOKEN)
 

@@ -354,34 +354,6 @@ def news_info_parser(html: str):
     return text_icq
 
 
-def in_channel(bot, user_id: str, channel_id: str = "697171138@chat.agent"):
-    """ Checking is a user on chat or not """
-    try:
-        lst_of_users = bot.get_chat_members(chat_id=channel_id).json()
-        if 'cursor' in lst_of_users.keys():
-            cur = '1221'
-            while cur:
-                cur = lst_of_users['cursor'] if 'cursor' in lst_of_users.keys(
-                ) else None
-                for user in lst_of_users['members']:
-                    if user_id == user['userId']:
-                        return True
-                else:
-                    lst_of_users = bot.get_chat_members(
-                        chat_id=channel_id, cursor=cur).json()
-            else:
-                return False
-        else:
-            for user in lst_of_users['members']:
-                if user_id == user['userId']:
-                    return True
-            else:
-                return False
-    except BaseException as err:
-        log('Error in_channel: ', type(err), ':', err)
-        return None
-
-
 if __name__ == "__main__":
     print(news_info_parser(get_html("https://www.championat.com/boxing/news-4974221-dariush-rasskazal-kogda-mozhet"
                                     "-sostoyatsya-ego-boj-s-eks-chempionom-ufc-olivejroj.html")))
